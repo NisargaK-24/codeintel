@@ -1,0 +1,5 @@
+# Sample repo gitignore
+__pycache__/
+*.pyc
+ignored_cache/
+temp_output.log

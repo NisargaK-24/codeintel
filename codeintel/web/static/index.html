@@ -1,0 +1,516 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CodeIntel — Local Code Intelligence & Risk Portal</title>
+  <meta name="description" content="Local static code intelligence, zombie code detection, and predictive commit risk analysis without external AI APIs or LLMs.">
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(22, 30, 49, 0.75);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --card-hover: rgba(30, 41, 67, 0.85);
+      --text-main: #f1f5f9;
+      --text-muted: #94a3b8;
+      --cyan: #06b6d4;
+      --violet: #8b5cf6;
+      --emerald: #10b981;
+      --amber: #f59e0b;
+      --rose: #f43f5e;
+      --radius: 12px;
+      --transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: var(--bg);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    header {
+      padding: 18px 32px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--card-border);
+      backdrop-filter: blur(12px);
+      background: rgba(9, 13, 22, 0.8);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+    .logo-group { display: flex; align-items: center; gap: 12px; }
+    .logo-badge {
+      background: linear-gradient(135deg, var(--cyan), var(--violet));
+      color: #fff;
+      font-weight: 800;
+      font-size: 16px;
+      padding: 6px 12px;
+      border-radius: 8px;
+      letter-spacing: 0.5px;
+    }
+    .repo-pill {
+      font-size: 13px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.05);
+      padding: 6px 12px;
+      border-radius: 20px;
+      border: 1px solid var(--card-border);
+    }
+    .nav-tabs {
+      display: flex;
+      gap: 6px;
+      padding: 16px 32px;
+      border-bottom: 1px solid var(--card-border);
+      background: rgba(15, 23, 42, 0.5);
+      overflow-x: auto;
+    }
+    .tab-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: var(--transition);
+      white-space: nowrap;
+    }
+    .tab-btn:hover { color: var(--text-main); background: rgba(255, 255, 255, 0.04); }
+    .tab-btn.active {
+      color: #fff;
+      background: rgba(6, 182, 212, 0.15);
+      border-color: rgba(6, 182, 212, 0.4);
+    }
+    main { padding: 32px; flex: 1; max-width: 1400px; margin: 0 auto; width: 100%; }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.25s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .grid-4 { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-bottom: 24px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: var(--radius);
+      padding: 20px;
+      backdrop-filter: blur(8px);
+      transition: var(--transition);
+    }
+    .card:hover { border-color: rgba(255, 255, 255, 0.15); }
+    .metric-title { font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+    .metric-val { font-size: 32px; font-weight: 700; color: #fff; }
+    .metric-sub { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .badge-high, .badge-critical { background: rgba(244, 63, 94, 0.18); color: var(--rose); border: 1px solid rgba(244, 63, 94, 0.4); }
+    .badge-medium { background: rgba(245, 158, 11, 0.18); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.4); }
+    .badge-low { background: rgba(16, 185, 129, 0.18); color: var(--emerald); border: 1px solid rgba(16, 185, 129, 0.4); }
+
+    table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 14px; }
+    th { text-align: left; padding: 12px; color: var(--text-muted); border-bottom: 1px solid var(--card-border); font-size: 12px; text-transform: uppercase; }
+    td { padding: 12px; border-bottom: 1px solid var(--card-border); color: var(--text-main); vertical-align: top; }
+    tr:hover td { background: rgba(255, 255, 255, 0.02); }
+
+    .evidence-tag { display: inline-block; font-size: 11px; background: rgba(255, 255, 255, 0.05); padding: 2px 6px; border-radius: 4px; margin: 2px; }
+    .recommendation-list { list-style: none; margin-top: 8px; }
+    .recommendation-list li { padding: 6px 0; font-size: 13px; color: var(--text-muted); }
+    .recommendation-list li::before { content: "•"; color: var(--cyan); margin-right: 8px; }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="logo-group">
+      <div class="logo-badge">CODEINTEL</div>
+      <span style="font-weight: 600; font-size: 15px;">Static Code Intelligence & Commit Risk</span>
+    </div>
+    <div class="repo-pill" id="repoPathPill">Analyzing repository...</div>
+  </header>
+
+  <nav class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('overview')">Overview Dashboard</button>
+    <button class="tab-btn" onclick="switchTab('multilang')">Multi-Language Coverage</button>
+    <button class="tab-btn" onclick="switchTab('graph')">Dependency Graph</button>
+    <button class="tab-btn" onclick="switchTab('zombies')">Zombie Candidates</button>
+    <button class="tab-btn" onclick="switchTab('quality')">Quality & Metrics</button>
+    <button class="tab-btn" onclick="switchTab('risk')">Commit Risk & ML</button>
+  </nav>
+
+  <main>
+    <!-- OVERVIEW TAB -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="grid-4">
+        <div class="card">
+          <div class="metric-title">REPOSITORY HEALTH SCORE</div>
+          <div class="metric-val" id="healthScore" style="color: var(--cyan);">--</div>
+          <div class="metric-sub" id="healthScoreSub">Static index quality</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">TOTAL FILES SCANNED</div>
+          <div class="metric-val" id="totalFiles">--</div>
+          <div class="metric-sub" id="totalLines">-- lines of code</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">POTENTIAL ZOMBIE CANDIDATES</div>
+          <div class="metric-val" id="zombieCount" style="color: var(--amber);">--</div>
+          <div class="metric-sub">Multi-factor suspicion score &ge; 50</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">CODE QUALITY ISSUES</div>
+          <div class="metric-val" id="qualityCount" style="color: var(--rose);">--</div>
+          <div class="metric-sub" id="qualityHighCount">-- high severity</div>
+        </div>
+      </div>
+
+      <div class="grid-4">
+        <div class="card">
+          <div class="metric-title">STANDALONE FUNCTIONS</div>
+          <div class="metric-val" id="funcCount">--</div>
+          <div class="metric-sub">Declarations & arrow functions</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">CLASSES & METHODS</div>
+          <div class="metric-val" id="classMethodCount">--</div>
+          <div class="metric-sub" id="classMethodSub">Classes / Methods</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">CALL SITES INDEXED</div>
+          <div class="metric-val" id="callCount">--</div>
+          <div class="metric-sub">Across caller-callee graph</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">AVERAGE MCCABE COMPLEXITY</div>
+          <div class="metric-val" id="avgComplexity">--</div>
+          <div class="metric-sub" id="maxComplexity">Max: --</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- MULTI-LANGUAGE COVERAGE TAB -->
+    <div id="tab-multilang" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Active Parsers Coverage</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Language</th>
+              <th>Files Detected</th>
+              <th>Parsed</th>
+              <th>Functions</th>
+              <th>Classes</th>
+              <th>Interfaces</th>
+              <th>Imports</th>
+              <th>Calls</th>
+            </tr>
+          </thead>
+          <tbody id="langStatsBody">
+            <tr><td colspan="8" style="color: var(--text-muted);">Loading coverage...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card" style="margin-top: 24px;">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Detected Languages (No Parser Available)</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Language</th>
+              <th>Files Count</th>
+              <th>Parser Status</th>
+            </tr>
+          </thead>
+          <tbody id="unsupportedLangBody">
+            <tr><td colspan="3" style="color: var(--text-muted);">Loading...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- DEPENDENCY GRAPH TAB -->
+    <div id="tab-graph" class="tab-content">
+      <div class="grid-4">
+        <div class="card">
+          <div class="metric-title">TOTAL GRAPH NODES</div>
+          <div class="metric-val" id="graphNodes">--</div>
+          <div class="metric-sub">Files, symbols & modules</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">CALLER &rarr; CALLEE EDGES</div>
+          <div class="metric-val" id="graphEdges">--</div>
+          <div class="metric-sub">Static call sites mapped</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">IMPORT EDGES</div>
+          <div class="metric-val" id="importEdges">--</div>
+          <div class="metric-sub">Resolved module linkages</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">DEPENDENCY CYCLES</div>
+          <div class="metric-val" id="cycleCount" style="color: var(--rose);">--</div>
+          <div class="metric-sub">Cyclic dependency loops</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">High Fan-In Central Hubs</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Symbol Qualified Name</th>
+              <th>Fan-In (Callers Count)</th>
+            </tr>
+          </thead>
+          <tbody id="topFanInBody">
+            <tr><td colspan="2">Loading graph hubs...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ZOMBIES TAB -->
+    <div id="tab-zombies" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Potential Zombie Code Candidates</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Score</th>
+              <th>Confidence</th>
+              <th>Symbol</th>
+              <th>File</th>
+              <th>Evidence Breakdown</th>
+            </tr>
+          </thead>
+          <tbody id="zombieTableBody">
+            <tr><td colspan="5">Loading potential zombie code candidates...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- QUALITY TAB -->
+    <div id="tab-quality" class="tab-content">
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Static Code Quality Issues</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Rule ID</th>
+              <th>Severity</th>
+              <th>Location</th>
+              <th>Message</th>
+            </tr>
+          </thead>
+          <tbody id="qualityTableBody">
+            <tr><td colspan="4">Loading quality issues...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- RISK TAB -->
+    <div id="tab-risk" class="tab-content">
+      <div class="grid-4">
+        <div class="card">
+          <div class="metric-title">EVALUATED COMMITS</div>
+          <div class="metric-val" id="commitsEvaluated">--</div>
+          <div class="metric-sub">From local Git history</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">AVERAGE COMMIT RISK</div>
+          <div class="metric-val" id="avgCommitRisk">--</div>
+          <div class="metric-sub">0 to 100 risk score</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">HIGH / CRITICAL COMMITS</div>
+          <div class="metric-val" id="highRiskCommits" style="color: var(--rose);">--</div>
+          <div class="metric-sub">Elevated defect likelihood</div>
+        </div>
+        <div class="card">
+          <div class="metric-title">ML MODEL STATUS</div>
+          <div class="metric-val" style="color: var(--emerald); font-size: 24px;">Active</div>
+          <div class="metric-sub">Local Random Forest (No-LLM)</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2 style="font-size: 18px; margin-bottom: 12px;">Predictive Commit Risk Evaluations</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Commit Hash</th>
+              <th>Risk Score</th>
+              <th>Tier</th>
+              <th>ML Defect Prob</th>
+              <th>Top Risk Factors</th>
+              <th>Recommendations</th>
+            </tr>
+          </thead>
+          <tbody id="riskTableBody">
+            <tr><td colspan="6">Loading commit risk evaluations...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('tab-' + tabId).classList.add('active');
+    }
+
+    async function loadData() {
+      try {
+        const [overviewRes, graphRes, zombiesRes, qualityRes, riskRes] = await Promise.all([
+          fetch('/api/overview').then(r => r.json()),
+          fetch('/api/graph').then(r => r.json()),
+          fetch('/api/zombies').then(r => r.json()),
+          fetch('/api/quality').then(r => r.json()),
+          fetch('/api/risk').then(r => r.json())
+        ]);
+
+        // Overview
+        document.getElementById('repoPathPill').textContent = overviewRes.repository_path;
+        document.getElementById('healthScore').textContent = overviewRes.health_score + '/100';
+        document.getElementById('totalFiles').textContent = overviewRes.total_files;
+        document.getElementById('totalLines').textContent = (overviewRes.total_lines || 0).toLocaleString() + ' lines';
+        document.getElementById('zombieCount').textContent = overviewRes.potential_zombies_count;
+        document.getElementById('qualityCount').textContent = overviewRes.quality_issues_count;
+        document.getElementById('funcCount').textContent = overviewRes.functions_count;
+        document.getElementById('classMethodCount').textContent = `${overviewRes.classes_count} / ${overviewRes.methods_count}`;
+        document.getElementById('callCount').textContent = overviewRes.calls_count.toLocaleString();
+        document.getElementById('avgComplexity').textContent = overviewRes.average_complexity;
+        document.getElementById('maxComplexity').textContent = 'Max: ' + overviewRes.max_complexity;
+
+        // Languages
+        const langBody = document.getElementById('langStatsBody');
+        langBody.innerHTML = '';
+        for (const [lang, s] of Object.entries(overviewRes.language_stats || {})) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><strong>${lang}</strong></td>
+            <td>${s.files}</td>
+            <td>${s.parsed}</td>
+            <td>${s.functions}</td>
+            <td>${s.classes}</td>
+            <td>${s.interfaces || 0}</td>
+            <td>${s.imports}</td>
+            <td>${s.calls}</td>
+          `;
+          langBody.appendChild(row);
+        }
+
+        const unsuppBody = document.getElementById('unsupportedLangBody');
+        unsuppBody.innerHTML = '';
+        for (const [lang, count] of Object.entries(overviewRes.unsupported_languages || {})) {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td><strong>${lang}</strong></td>
+            <td>${count}</td>
+            <td><span class="badge badge-medium">Language detected but parser unavailable.</span></td>
+          `;
+          unsuppBody.appendChild(row);
+        }
+
+        // Graph
+        document.getElementById('graphNodes').textContent = graphRes.summary.total_nodes.toLocaleString();
+        document.getElementById('graphEdges').textContent = graphRes.summary.total_edges.toLocaleString();
+        document.getElementById('importEdges').textContent = graphRes.summary.import_edges_count.toLocaleString();
+        document.getElementById('cycleCount').textContent = graphRes.summary.cycles_count;
+
+        const fanInBody = document.getElementById('topFanInBody');
+        fanInBody.innerHTML = '';
+        for (const item of (graphRes.top_fan_in_nodes || []).slice(0, 8)) {
+          const row = document.createElement('tr');
+          row.innerHTML = `<td><code>${item.symbol}</code></td><td><strong>${item.fan_in}</strong> callers</td>`;
+          fanInBody.appendChild(row);
+        }
+
+        // Zombies
+        const zBody = document.getElementById('zombieTableBody');
+        zBody.innerHTML = '';
+        const candidates = zombiesRes.candidates || [];
+        if (candidates.length === 0) {
+          zBody.innerHTML = '<tr><td colspan="5" style="color: var(--emerald);">Zero zombie candidates found! Codebase is well-referenced.</td></tr>';
+        } else {
+          for (const c of candidates) {
+            const row = document.createElement('tr');
+            const bClass = c.confidence === 'HIGH' ? 'badge-high' : c.confidence === 'MEDIUM' ? 'badge-medium' : 'badge-low';
+            const evidenceHtml = (c.evidence || []).map(e => `<span class="evidence-tag">${e.rule_name} (${e.score_delta > 0 ? '+' : ''}${e.score_delta})</span>`).join('');
+            row.innerHTML = `
+              <td><strong>${c.score}</strong></td>
+              <td><span class="badge ${bClass}">${c.confidence}</span></td>
+              <td><code>${c.symbol_name}</code></td>
+              <td style="color: var(--text-muted); font-size: 13px;">${c.file_path}</td>
+              <td>${evidenceHtml}</td>
+            `;
+            zBody.appendChild(row);
+          }
+        }
+
+        // Quality
+        const qBody = document.getElementById('qualityTableBody');
+        qBody.innerHTML = '';
+        for (const issue of (qualityRes.issues || []).slice(0, 40)) {
+          const row = document.createElement('tr');
+          const bClass = issue.severity === 'HIGH' ? 'badge-high' : issue.severity === 'MEDIUM' ? 'badge-medium' : 'badge-low';
+          row.innerHTML = `
+            <td><code>${issue.rule_id}</code></td>
+            <td><span class="badge ${bClass}">${issue.severity}</span></td>
+            <td style="font-size: 13px;">${issue.file}:${issue.line}</td>
+            <td>${issue.message}</td>
+          `;
+          qBody.appendChild(row);
+        }
+
+        // Risk
+        if (riskRes.available && riskRes.data) {
+          const rData = riskRes.data;
+          document.getElementById('commitsEvaluated').textContent = rData.total_commits_evaluated;
+          document.getElementById('avgCommitRisk').textContent = rData.average_risk_score + '/100';
+          document.getElementById('highRiskCommits').textContent = (rData.high_risk_commits_count + rData.critical_risk_commits_count);
+
+          const rBody = document.getElementById('riskTableBody');
+          rBody.innerHTML = '';
+          for (const c of rData.commits || []) {
+            const row = document.createElement('tr');
+            const tierClass = c.risk_tier === 'CRITICAL' ? 'badge-critical' : c.risk_tier === 'HIGH' ? 'badge-high' : c.risk_tier === 'MEDIUM' ? 'badge-medium' : 'badge-low';
+            const factorsHtml = (c.top_risk_factors || []).map(f => `<div><span class="badge badge-medium">+${f.score_contribution}</span> ${f.description}</div>`).join('');
+            const recHtml = `<ul class="recommendation-list">${(c.recommendations || []).map(r => `<li>${r}</li>`).join('')}</ul>`;
+            row.innerHTML = `
+              <td><code>${c.commit_hash.substring(0, 8)}</code><div style="font-size: 12px; color: var(--text-muted);">${c.commit_message}</div></td>
+              <td><strong>${c.risk_score}</strong></td>
+              <td><span class="badge ${tierClass}">${c.risk_tier}</span></td>
+              <td>${(c.ml_defect_probability * 100).toFixed(1)}%</td>
+              <td style="font-size: 13px;">${factorsHtml || 'None'}</td>
+              <td>${recHtml}</td>
+            `;
+            rBody.appendChild(row);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to load analysis:', err);
+      }
+    }
+
+    loadData();
+  </script>
+</body>
+</html>
